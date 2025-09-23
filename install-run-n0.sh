@@ -14,7 +14,7 @@ OWNER_GROUP="adm"
 RUN_USER="root"   # cron owner; root is simplest since it touches /var/log
 
 # If you want n0 to run as a non-root account (recommended if n0 expects non-root), set this:
-EXEC_USER=""      # e.g. "dimi" or leave empty to run as the cron user
+EXEC_USER="nodezero"      # e.g. "dimi" or leave empty to run as the cron user
 # -----------------------------------
 
 need_root() {
@@ -35,6 +35,11 @@ install_runner() {
 # Logs all runs (with duration) to /var/log/run-n0.log (rotated by logrotate).
 
 set -euo pipefail
+
+# --- cron-safe environment ---
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export TERM="dumb"
+umask 027
 
 LOGFILE="/var/log/run-n0.log"
 
