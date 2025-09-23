@@ -36,11 +36,6 @@ install_runner() {
 
 set -euo pipefail
 
-# --- Cron-safe environment ---
-export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-export TERM="dumb"
-umask 027
-
 LOGFILE="/var/log/run-n0.log"
 
 log() {
@@ -55,26 +50,20 @@ log() {
   echo "==============================================="
 } >>"$LOGFILE"
 
-# Single-instance lock (silent if another run is in progress)
-exec 9>/var/lock/run-n0.lock
-if ! flock -n 9; then
-  exit 0
-fi
-
-# Robust running-container counter (works if docker is missing or daemon is down)
+# --- Robust running-container counter ---
 docker_running_count() {
+  # If Docker CLI isn't available, treat as 0
   if ! command -v docker >/dev/null 2>&1; then
     printf '0\n'
     return 0
   fi
-  # Avoid pipefail within command substitution: capture output safely
+
+  # Capture quietly; never fail the script if Docker daemon is down
   local out
-  if out="$(docker ps -q 2>/dev/null)"; then
-    # wc -l can add spaces; trim with awk
-    printf '%s\n' "$out" | wc -l | awk '{print $1}'
-  else
-    printf '0\n'
-  fi
+  out="$(docker ps -q 2>/dev/null || true)"
+
+  # Count only non-empty lines (avoids a lone newline being counted as 1)
+  awk 'NF{c++} END{print c+0}' <<< "$out"
 }
 
 running="$(docker_running_count)"
@@ -83,39 +72,16 @@ if [[ "$running" -eq 0 ]]; then
   log "No active Docker containers detected. Running: n0 -n 5"
 
   start_ts=$(date +%s)
-
-  # Optionally run n0 as a specific non-root user if EXEC_USER is set in the environment
-  # (The installer can write EXEC_USER into this script's environment via a wrapper; we also read /etc/default)
-  # We intentionally do NOT change any log messages.
-  if [[ -n "${EXEC_USER:-}" && "${EUID}" -eq 0 && "${EXEC_USER}" != "root" ]]; then
-    if command -v runuser >/dev/null 2>&1; then
-      if runuser -l "$EXEC_USER" -c "n0 -n 5" >>"$LOGFILE" 2>&1; then
-        end_ts=$(date +%s); duration=$(( end_ts - start_ts ))
-        log "n0 completed successfully. Duration: ${duration}s"
-      else
-        rc=$?; end_ts=$(date +%s); duration=$(( end_ts - start_ts ))
-        log "ERROR: n0 failed with exit code $rc. Duration: ${duration}s"
-        exit 1
-      fi
-    else
-      if sudo -u "$EXEC_USER" -- sh -lc "n0 -n 5" >>"$LOGFILE" 2>&1; then
-        end_ts=$(date +%s); duration=$(( end_ts - start_ts ))
-        log "n0 completed successfully. Duration: ${duration}s"
-      else
-        rc=$?; end_ts=$(date +%s); duration=$(( end_ts - start_ts ))
-        log "ERROR: n0 failed with exit code $rc. Duration: ${duration}s"
-        exit 1
-      fi
-    fi
+  if n0 -n 5 >>"$LOGFILE" 2>&1; then
+    end_ts=$(date +%s)
+    duration=$(( end_ts - start_ts ))
+    log "n0 completed successfully. Duration: ${duration}s"
   else
-    if n0 -n 5 >>"$LOGFILE" 2>&1; then
-      end_ts=$(date +%s); duration=$(( end_ts - start_ts ))
-      log "n0 completed successfully. Duration: ${duration}s"
-    else
-      rc=$?; end_ts=$(date +%s); duration=$(( end_ts - start_ts ))
-      log "ERROR: n0 failed with exit code $rc. Duration: ${duration}s"
-      exit 1
-    fi
+    rc=$?
+    end_ts=$(date +%s)
+    duration=$(( end_ts - start_ts ))
+    log "ERROR: n0 failed with exit code $rc. Duration: ${duration}s"
+    exit 1
   fi
 else
   log "Found $running active Docker container(s). Skipping n0."
