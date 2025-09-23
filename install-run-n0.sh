@@ -24,7 +24,7 @@ running=$("$DOCKER" ps -q 2>/dev/null | wc -l || echo 0)
 if [[ "$running" -eq 0 ]]; then
   log "No active Docker containers detected. Running: n0 -n 5"
   start_ts=$(date +%s)
-  if n0 -n 5 >>"$LOGFILE" 2>&1; then
+  if SUDO_USER="$USER" n0 -n 5 >>"$LOGFILE" 2>&1; then
     end_ts=$(date +%s); duration=$(( end_ts - start_ts ))
     log "n0 completed successfully. Duration: ${duration}s"
   else
