@@ -2,21 +2,11 @@
 set -Eeuo pipefail
 
 LOGFILE="/var/log/run-n0.log"
-LOCKFILE="/var/lock/run-n0.lock"
 
-# The command to run (edit here if you change args/env later)
 CMD=(sudo -u nodezero env TERM=dumb PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" n0 -n 5)
 
-# Ensure log/lock locations exist
+# Ensure logfile path exists
 mkdir -p "$(dirname "$LOGFILE")"
-mkdir -p "$(dirname "$LOCKFILE")"
-
-# Prevent concurrent runs
-exec 9>"$LOCKFILE"
-if ! flock -n 9; then
-  echo "Another run appears to be in progress (lock: $LOCKFILE). Exiting."
-  exit 1
-fi
 
 # Header
 {
@@ -29,7 +19,7 @@ fi
   printf '\n========================================\n'
 } >>"$LOGFILE"
 
-# Run + log
+# Run command + capture
 start_ts=$(date +%s)
 "${CMD[@]}" 2>&1 | tee -a "$LOGFILE"
 cmd_rc=${PIPESTATUS[0]}
