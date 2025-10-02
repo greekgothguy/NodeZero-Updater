@@ -29,7 +29,7 @@ duration=$(( end_ts - start_ts ))
 # Footer
 {
   printf 'Exit code: %d | Duration: %ds\n' "$cmd_rc" "$duration"
-  printf '--------------- End of run ---------------\n'
+  printf '=============== End of run ===============\n'
 } >>"$LOGFILE"
 
 exit "$cmd_rc"
